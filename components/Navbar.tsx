@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Moon, Sun, MonitorPlay } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, Moon, Sun, MonitorPlay, X } from 'lucide-react';
 import { MediaItem } from '../types';
 import { searchMedia } from '../services/tmdb';
 
@@ -14,12 +14,20 @@ const Navbar: React.FC<NavbarProps> = ({ toggleTheme, isDark, onSearchResultSele
   const [results, setResults] = useState<MediaItem[]>([]);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 50);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    if (isMobileSearchOpen && mobileInputRef.current) {
+        mobileInputRef.current.focus();
+    }
+  }, [isMobileSearchOpen]);
 
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -40,19 +48,26 @@ const Navbar: React.FC<NavbarProps> = ({ toggleTheme, isDark, onSearchResultSele
     return () => clearTimeout(timer);
   }, [query]);
 
+  const handleSelect = (item: MediaItem) => {
+    onSearchResultSelect(item);
+    setQuery('');
+    setResults([]);
+    setIsMobileSearchOpen(false);
+  };
+
   return (
     <nav className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${isScrolled ? 'bg-slate-50/90 dark:bg-slate-950/90 backdrop-blur-md shadow-md py-3' : 'bg-transparent py-5'}`}>
       <div className="container mx-auto px-6 flex items-center justify-between">
         
         {/* Logo */}
-        <div className="flex items-center gap-2 cursor-pointer group" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+        <div className={`flex items-center gap-2 cursor-pointer group ${isMobileSearchOpen ? 'opacity-0 md:opacity-100' : 'opacity-100'}`} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
           <MonitorPlay className="text-pineapple-500 w-8 h-8 group-hover:rotate-12 transition-transform" />
           <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pineapple-500 to-pineapple-600 dark:from-pineapple-400 dark:to-pineapple-500">
             Pineapple
           </span>
         </div>
 
-        {/* Search Bar */}
+        {/* Desktop Search Bar */}
         <div className="relative hidden md:block w-96 group">
             <div className="relative">
                 <input
@@ -74,11 +89,7 @@ const Navbar: React.FC<NavbarProps> = ({ toggleTheme, isDark, onSearchResultSele
                     {results.map(item => (
                         <div 
                             key={item.id}
-                            onClick={() => {
-                                onSearchResultSelect(item);
-                                setQuery('');
-                                setResults([]);
-                            }}
+                            onClick={() => handleSelect(item)}
                             className="flex items-center gap-3 p-3 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors border-b border-slate-100 dark:border-slate-800 last:border-0"
                         >
                             <div className="w-10 h-14 bg-slate-300 rounded overflow-hidden flex-shrink-0">
@@ -100,10 +111,56 @@ const Navbar: React.FC<NavbarProps> = ({ toggleTheme, isDark, onSearchResultSele
             )}
         </div>
 
+        {/* Mobile Search Overlay */}
+        <div className={`absolute top-0 left-0 w-full h-full bg-slate-50 dark:bg-slate-950 flex items-center px-4 z-50 transition-transform duration-300 md:hidden ${isMobileSearchOpen ? 'translate-y-0' : '-translate-y-full'}`}>
+             <Search className="text-slate-500 mr-3" size={20} />
+             <input 
+                ref={mobileInputRef}
+                type="text" 
+                className="flex-1 bg-transparent border-none outline-none text-lg text-slate-800 dark:text-white placeholder-slate-400"
+                placeholder="Search..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+             />
+             {isSearching && <div className="w-4 h-4 mr-3 border-2 border-pineapple-500 border-t-transparent rounded-full animate-spin"></div>}
+             <button onClick={() => { setIsMobileSearchOpen(false); setQuery(''); setResults([]); }} className="p-2 text-slate-500">
+                <X size={24} />
+             </button>
+             
+             {/* Mobile Results */}
+             {results.length > 0 && (
+                <div className="absolute top-full left-0 w-full bg-slate-50 dark:bg-slate-950 shadow-xl border-t border-slate-200 dark:border-slate-800">
+                     {results.map(item => (
+                        <div 
+                            key={item.id}
+                            onClick={() => handleSelect(item)}
+                            className="flex items-center gap-3 p-4 border-b border-slate-200 dark:border-slate-800"
+                        >
+                            <div className="w-10 h-14 bg-slate-300 rounded overflow-hidden flex-shrink-0">
+                                {item.poster_path ? (
+                                    <img src={`https://image.tmdb.org/t/p/w92${item.poster_path}`} alt={item.title || item.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full bg-slate-700" />
+                                )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h4 className="text-sm font-medium text-slate-900 dark:text-white truncate">{item.title || item.name}</h4>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    {item.media_type.toUpperCase()} • {(item.release_date || item.first_air_date || '').split('-')[0]}
+                                </p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+             )}
+        </div>
+
         {/* Right Actions */}
         <div className="flex items-center gap-4">
-             {/* Mobile Search Icon (Placeholder for now) */}
-             <button className="md:hidden text-slate-600 dark:text-slate-300">
+             <button 
+                onClick={() => setIsMobileSearchOpen(true)}
+                className="md:hidden text-slate-600 dark:text-slate-300 hover:text-pineapple-500 transition-colors"
+             >
                 <Search size={24} />
              </button>
 

@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { MediaItem, MediaDetails, Season, Episode } from '../types';
 import { getMediaDetails, getSeasonDetails } from '../services/tmdb';
 import { IMAGE_BASE_URL_HD, VIDROCK_MOVIE_EMBED, VIDROCK_TV_EMBED } from '../constants';
-import { X, Play, Calendar, Clock, Star, Users } from 'lucide-react';
+import { X, Play, Calendar, Clock, Star, Users, Maximize, Minimize } from 'lucide-react';
 
 interface DetailModalProps {
   item: MediaItem;
@@ -18,6 +18,8 @@ const DetailModal: React.FC<DetailModalProps> = ({ item, onClose, initialPlay = 
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [loading, setLoading] = useState(true);
   const [seasonLoading, setSeasonLoading] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const playerContainerRef = useRef<HTMLDivElement>(null);
 
   // Lock body scroll
   useEffect(() => {
@@ -26,6 +28,38 @@ const DetailModal: React.FC<DetailModalProps> = ({ item, onClose, initialPlay = 
       document.body.style.overflow = 'auto';
     };
   }, []);
+
+  // Handle Fullscreen toggle
+  const toggleFullScreen = () => {
+    if (!document.fullscreenElement) {
+      playerContainerRef.current?.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  // Sync fullscreen state with browser events (e.g. Esc key)
+  useEffect(() => {
+    const handleFullScreenChange = () => {
+      setIsFullScreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullScreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullScreenChange);
+  }, []);
+
+  // Keyboard shortcut 'F'
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isPlaying && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        toggleFullScreen();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPlaying]);
 
   const fetchDetails = useCallback(async () => {
     try {
@@ -86,21 +120,44 @@ const DetailModal: React.FC<DetailModalProps> = ({ item, onClose, initialPlay = 
 
     if (isPlaying) {
       return (
-        <div className="w-full aspect-video bg-black relative rounded-lg overflow-hidden shadow-2xl">
+        <div 
+            ref={playerContainerRef}
+            className={`w-full bg-black relative shadow-2xl animate-fade-in ${isFullScreen ? 'h-screen w-screen' : 'aspect-video rounded-lg overflow-hidden'}`}
+        >
           <iframe
             src={getEmbedUrl()}
             className="w-full h-full"
             allowFullScreen
             title={title}
-            frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            scrolling="no"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerPolicy="origin"
+            style={{ border: 0 }}
           ></iframe>
-           <button 
-            onClick={() => setIsPlaying(false)}
-            className="absolute top-4 right-4 bg-black/50 hover:bg-black/80 text-white p-2 rounded-full backdrop-blur-sm transition-colors z-50"
-          >
-            <X size={20} />
-          </button>
+           
+           <div className="absolute top-4 right-4 flex gap-3 z-50">
+                <button
+                    onClick={toggleFullScreen}
+                    className="bg-black/50 hover:bg-black/80 text-white p-2 rounded-full backdrop-blur-sm transition-colors group"
+                    title="Toggle Fullscreen (F)"
+                >
+                    {isFullScreen ? (
+                        <Minimize size={20} className="group-hover:scale-110 transition-transform" />
+                    ) : (
+                        <Maximize size={20} className="group-hover:scale-110 transition-transform" />
+                    )}
+                </button>
+                
+                <button 
+                    onClick={() => {
+                        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+                        setIsPlaying(false);
+                    }}
+                    className="bg-black/50 hover:bg-black/80 text-white p-2 rounded-full backdrop-blur-sm transition-colors group"
+                >
+                    <X size={20} className="group-hover:scale-110 transition-transform" />
+                </button>
+           </div>
         </div>
       );
     }
@@ -207,7 +264,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ item, onClose, initialPlay = 
                                             setIsPlaying(true);
                                         }}
                                         className={`flex items-start gap-3 p-3 rounded-lg text-left transition-all hover:bg-white dark:hover:bg-slate-700 ${
-                                            selectedEpisode === ep.episode_number && isPlaying && false // Logic to highlight current? Maybe unnecessary for modal play
+                                            selectedEpisode === ep.episode_number && isPlaying && false 
                                             ? 'ring-2 ring-pineapple-500'
                                             : ''
                                         }`}

@@ -48,3 +48,21 @@ export const getSeasonDetails = async (tvId: number, seasonNumber: number): Prom
   const data = await fetchFromTMDB<any>(`/tv/${tvId}/season/${seasonNumber}`);
   return { episodes: data.episodes };
 };
+
+export const getDiscoverContent = async (
+  type: 'movie' | 'tv',
+  language?: string,
+  genreId?: number
+): Promise<MediaItem[]> => {
+  const params: Record<string, string> = {
+    sort_by: 'popularity.desc',
+    include_adult: 'false',
+    'vote_count.gte': '10',
+  };
+  
+  if (language) params.with_original_language = language;
+  if (genreId) params.with_genres = genreId.toString();
+
+  const data = await fetchFromTMDB<SearchResponse>(`/discover/${type}`, params);
+  return data.results.map(item => ({ ...item, media_type: type }));
+};
