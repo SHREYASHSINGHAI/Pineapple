@@ -1,0 +1,5 @@
+{
+  "name": "Pineapple",
+  "description": "A minimalistic, aesthetic movie and TV series streaming platform featuring smooth animations, light/dark modes, and TMDB integration.",
+  "requestFramePermissions": []
+}
