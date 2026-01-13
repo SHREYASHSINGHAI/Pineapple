@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { MediaItem, MediaDetails, Season, Episode } from '../types';
 import { getMediaDetails, getSeasonDetails } from '../services/tmdb';
 import { IMAGE_BASE_URL_HD, VIDROCK_MOVIE_EMBED, VIDROCK_TV_EMBED } from '../constants';
-import { X, Play, Calendar, Clock, Star, Users, Maximize, Minimize } from 'lucide-react';
+import { X, Play, Calendar, Clock, Star, Users, Maximize, Minimize, ArrowLeft } from 'lucide-react';
 
 interface DetailModalProps {
   item: MediaItem;
@@ -30,15 +30,17 @@ const DetailModal: React.FC<DetailModalProps> = ({ item, onClose, initialPlay = 
   }, []);
 
   // Handle Fullscreen toggle
-  const toggleFullScreen = () => {
+  const toggleFullScreen = useCallback(() => {
     if (!document.fullscreenElement) {
       playerContainerRef.current?.requestFullscreen().catch(err => {
         console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
       });
     } else {
-      document.exitFullscreen();
+      document.exitFullscreen().catch(err => {
+        console.error(`Error attempting to exit full-screen mode: ${err.message} (${err.name})`);
+     });
     }
-  };
+  }, []);
 
   // Sync fullscreen state with browser events (e.g. Esc key)
   useEffect(() => {
@@ -52,14 +54,17 @@ const DetailModal: React.FC<DetailModalProps> = ({ item, onClose, initialPlay = 
   // Keyboard shortcut 'F'
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Check if the key is F and we are playing
       if (isPlaying && (e.key === 'f' || e.key === 'F')) {
+        // Prevent default only if we're consuming the event
         e.preventDefault();
         toggleFullScreen();
       }
     };
+    // Use capture phase to try and catch events before they disappear into iframes if possible
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPlaying]);
+  }, [isPlaying, toggleFullScreen]);
 
   const fetchDetails = useCallback(async () => {
     try {
@@ -154,8 +159,9 @@ const DetailModal: React.FC<DetailModalProps> = ({ item, onClose, initialPlay = 
                         setIsPlaying(false);
                     }}
                     className="bg-black/50 hover:bg-black/80 text-white p-2 rounded-full backdrop-blur-sm transition-colors group"
+                    title="Back to Details"
                 >
-                    <X size={20} className="group-hover:scale-110 transition-transform" />
+                    <ArrowLeft size={20} className="group-hover:scale-110 transition-transform" />
                 </button>
            </div>
         </div>
